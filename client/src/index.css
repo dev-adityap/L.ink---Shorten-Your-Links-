@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply antialiased selection:bg-gray-900 selection:text-white;
+  }
+  /* Skip to content link */
+  #skip-to-content {
+    @apply sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-50 focus:px-4 focus:py-2 focus:bg-[#FBF9F4] focus:text-gray-900 focus:border border-[#EBE9E0] focus:rounded;
+  }
+}
+
+@layer components {
+  /* Legacy component classes (for UrlForm, UrlTable compatibility) */
+  .input-field {
+    @apply w-full px-4 py-3 text-sm text-gray-900 bg-[#FBF9F4] border border-[#EBE9E0] rounded-xl focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all placeholder:text-gray-500;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 text-xs font-bold text-white bg-gray-900 rounded-xl shadow-lg hover:bg-gray-800 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-900/50 focus:ring-offset-2 focus:ring-offset-[#FDFCF7];
+  }
+  .glass-card {
+    @apply bg-[#FBF9F4] border border-[#EBE9E0] rounded-xl shadow-sm;
+  }
+  .link-row {
+    @apply bg-[#FBF9F4]/50 border border-[#EBE9E0] rounded-xl p-3 hover:border-[#D9D6C6] transition-all duration-200;
+  }
+
+  /* New component classes */
+  .card-base {
+    @apply bg-[#FBF9F4] border border-[#EBE9E0] rounded-xl shadow-sm overflow-hidden;
+  }
+  .btn-cream {
+    @apply px-6 py-3 text-xs font-bold text-gray-900 bg-[#FBF9F4] rounded-xl hover:bg-[#EFEBE2] transition-colors tracking-tighter uppercase;
+  }
+  .icon-container {
+    @apply w-12 h-12 rounded-lg border border-[#EBE9E0] bg-[#EFEBE2] flex items-center justify-center;
+  }
+  .avatar-placeholder {
+    @apply w-6 h-6 rounded-full bg-gradient-to-tr from-stone-200 to-stone-300;
+  }
+  .copy-btn {
+    @apply p-2 text-gray-500 hover:text-gray-900 transition-colors rounded-lg hover:bg-[#EFEBE2];
+  }
+  .nav-link {
+    @apply text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors;
+  }
+  .section-heading {
+    @apply font-serif text-3xl sm:text-4xl font-bold text-gray-900 mb-4;
+  }
+  .section-subheading {
+    @apply font-sans text-gray-500 text-sm max-w-2xl mx-auto leading-relaxed;
+  }
+  .stats-number {
+    @apply font-serif text-6xl sm:text-7xl font-bold text-[#D9D6C6];
+  }
+  .stats-label {
+    @apply font-sans text-xs font-medium text-gray-500 mt-2 tracking-wider uppercase;
+  }
+  .faq-item {
+    @apply border border-[#EBE9E0] rounded-xl overflow-hidden group;
+  }
+  .faq-button {
+    @apply w-full flex items-center justify-between px-6 py-4 bg-[#FBF9F4] transition-colors;
+  }
+  .faq-answer {
+    @apply px-6 py-4 border-t-[#EBE9E0] bg-[#EFEBE2];
+  }
+  .footer-dark {
+    @apply bg-[#1A1A18] border-t border-[#2A2A24];
+  }
+  .footer-cta {
+    @apply bg-[#1A1A18] border border-[#2A2A24] rounded-2xl p-8 md:p-12 mx-4 sm:mx-10 lg:mx-20 mt-20 mb-16 text-center;
+  }
+  .scroll-progress {
+    @apply fixed top-0 left-0 h-1 bg-gray-900 z-50 origin-left scale-x-0 transition-transform duration-300 ease-out;
+  }
+  .back-to-top {
+    @apply fixed bottom-8 right-8 z-40 bg-gray-900 text-white p-3 rounded-xl shadow-lg opacity-0 translate-y-10 transition-all duration-300 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/50;
+  }
+  .back-to-top.visible {
+    @apply opacity-100 translate-y-0;
+  }
+  .cookie-banner {
+    @apply fixed bottom-0 left-0 right-0 z-50 bg-[#FBF9F4] border-t border-[#EBE9E0] p-6 md:p-8 shadow-lg;
+  }
+  .search-input {
+    @apply w-full px-4 py-3 text-sm text-gray-900 bg-[#FBF9F4] border border-[#EBE9E0] rounded-xl focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900;
+  }
+  .skeleton {
+    @apply animate-pulse bg-[#EFEBE2] rounded;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

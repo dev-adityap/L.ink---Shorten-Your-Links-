@@ -1,0 +1,9 @@
+# Robots.txt for L.ink URL Shortener
+User-agent: *
+Allow: /
+
+# Disallow API endpoints
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://link.ink/sitemap.xml
