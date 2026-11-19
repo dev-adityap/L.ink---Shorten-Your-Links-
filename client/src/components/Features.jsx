@@ -36,7 +36,7 @@ export default function Features() {
     'bg-[#F8F7F2] dark:bg-slate-800 border border-[#EBE9E0] dark:border-slate-700 rounded-2xl p-8 hover:border-[#D9D6C6] dark:hover:border-slate-500 group cursor-pointer transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg';
 
   return (
-    <section id="features" className="py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <section id="features" className="scroll-mt-24 py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       <div className="text-center mb-16">
         <h2 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900 dark:text-slate-50 mb-4">
           Why choose us

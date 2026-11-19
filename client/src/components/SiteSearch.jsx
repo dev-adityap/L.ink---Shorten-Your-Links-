@@ -1,78 +1,57 @@
-import { useState } from 'react';
+import { Search, X } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-export default function SiteSearch() {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [showResults, setShowResults] = useState(false);
+export default function SiteSearch({ query = '', onQueryChange }) {
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const pages = [
-    { title: 'Home', path: '#', description: 'Landing page with URL shortener' },
-    { title: 'Features', path: '#features', description: 'Advanced Link Analytics, Customizable Links, Generate QRs' },
-    { title: 'About', path: '#about', description: 'About L.ink URL shortener' },
-    { title: 'Contact us', path: '#contact', description: 'Get in touch with our team' },
-    { title: 'FAQ', path: '#faq', description: 'Frequently asked questions' },
-  ];
-
-  const handleSearch = (e) => {
-    const q = e.target.value.toLowerCase();
-    setQuery(q);
-    if (q.length > 0) {
-      setResults(
-        pages.filter(
-          (p) =>
-            p.title.toLowerCase().includes(q) ||
-            p.description.toLowerCase().includes(q)
-        )
-      );
-      setShowResults(true);
-    } else {
-      setResults([]);
-      setShowResults(false);
-    }
+  const handleChange = (e) => {
+    onQueryChange?.(e.target.value);
   };
 
-  const handleSelect = (path) => {
-    setQuery('');
-    setResults([]);
-    setShowResults(false);
-    window.location.hash = path;
+  const handleClear = () => {
+    onQueryChange?.('');
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      handleClear();
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const trimmed = query.trim();
+      if (!trimmed) return;
+      if (location.pathname !== '/dashboard') {
+        navigate('/dashboard', { state: { linkSearch: trimmed } });
+      }
+    }
   };
 
   return (
     <div className="relative">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500 pointer-events-none" />
       <input
         type="search"
         placeholder="Search site..."
         value={query}
-        onChange={handleSearch}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
         className="search-input pl-10 pr-8"
-        aria-label="Site search"
+        aria-label="Search links"
       />
-      <svg
-        width="16"
-        height="16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-        viewBox="0 0 24 24"
-      >
-        <circle cx="11" cy="11" r="8" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M21 21l-4.35-4.35" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      {showResults && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-[#FBF9F4] border border-[#EBE9E0] rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto">
-          {results.map((page) => (
-            <button
-              key={page.title}
-              onClick={() => handleSelect(page.path)}
-              className="w-full text-left px-4 py-3 text-sm text-gray-900 hover:bg-[#EFEBE2] transition-colors"
-            >
-              <div className="font-medium">{page.title}</div>
-              <div className="text-xs text-gray-500">{page.description}</div>
-            </button>
-          ))}
-        </div>
+      {query && (
+        <button
+          type="button"
+          onClick={handleClear}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+          aria-label="Clear search"
+          title="Clear search"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       )}
     </div>
   );

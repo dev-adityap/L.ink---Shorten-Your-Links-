@@ -8,6 +8,7 @@ export default function Contact() {
     message: '',
   });
   const [status, setStatus] = useState('idle');
+  const contactEmail = import.meta.env.VITE_CONTACT_EMAIL || 'adityapanna009@gmail.com';
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -27,8 +28,11 @@ export default function Contact() {
         },
         body: JSON.stringify({
           access_key: 'cec49f64-5058-4be9-b0a1-dfd54d762895',
+          subject: `New L.ink contact message from ${formData.name}`,
+          from_name: formData.name,
           name: formData.name,
           email: formData.email,
+          replyto: formData.email,
           message: formData.message,
         }),
       });
@@ -50,14 +54,14 @@ export default function Contact() {
   const isSubmitting = status === 'submitting';
 
   return (
-    <div className="min-h-screen bg-[#FDFCF7] dark:bg-slate-900 py-16 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#FDFCF7] dark:bg-slate-900 pt-28 sm:pt-32 pb-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12">
           <h1 className="font-serif text-4xl sm:text-5xl font-bold text-gray-900 dark:text-slate-50 mb-4">
             Contact Us
           </h1>
           <p className="font-sans text-sm sm:text-base text-gray-600 dark:text-slate-400 max-w-2xl mx-auto">
-            Have a question, feedback, or need help? We&apos;d love to hear from you. Reach out and we&apos;ll get back to you as soon as possible.
+            Have a question, feedback, or need help with L.ink? I&apos;d love to hear from you. Reach out and I&apos;ll get back to you as soon as I can.
           </p>
         </div>
 
@@ -67,7 +71,7 @@ export default function Contact() {
               Get in touch
             </h2>
             <p className="font-sans text-sm text-gray-600 dark:text-slate-400 mb-8 leading-relaxed">
-              Whether you&apos;re exploring L.ink for personal use or need support with your links, our team is here to help. Drop us a message and we&apos;ll respond promptly.
+              L.ink is an indie SaaS project I&apos;m building and maintaining. Whether you&apos;re exploring it for personal use or need support with your links, I&apos;m here to help. Drop me a message and I&apos;ll respond promptly.
             </p>
 
             <div className="space-y-6">
@@ -80,10 +84,10 @@ export default function Contact() {
                     Email
                   </p>
                   <a
-                    href="mailto:support@link.app"
+                    href={`mailto:${contactEmail}`}
                     className="text-sm font-medium text-gray-900 dark:text-slate-50 hover:underline"
                   >
-                    support@link.app
+                    {contactEmail}
                   </a>
                 </div>
               </div>
@@ -97,10 +101,10 @@ export default function Contact() {
                     Location
                   </p>
                   <p className="text-sm font-medium text-gray-900 dark:text-slate-50">
-                    San Francisco, CA
+                    Kolkata, West Bengal, India
                   </p>
                   <p className="text-sm text-gray-600 dark:text-slate-400">
-                    Remote-first team
+                    Built &amp; maintained in India
                   </p>
                 </div>
               </div>
@@ -114,7 +118,7 @@ export default function Contact() {
 
             {status === 'success' && (
               <div className="mb-6 p-3 bg-[#ecfdf5] dark:bg-emerald-900/20 border border-[#6ee7b7] dark:border-emerald-800 rounded-lg text-sm text-[#047857] dark:text-emerald-400">
-                Thanks for reaching out! We&apos;ll get back to you soon.
+                Thanks for reaching out! I&apos;ll get back to you soon.
               </div>
             )}
 
@@ -169,7 +173,7 @@ export default function Contact() {
                   required
                   rows={5}
                   className="w-full px-4 py-3 text-sm text-gray-900 dark:text-slate-100 bg-[#FBF9F4] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-600 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400 resize-y"
-                  placeholder="How can we help you?"
+                  placeholder="How can I help you?"
                 />
               </div>
 

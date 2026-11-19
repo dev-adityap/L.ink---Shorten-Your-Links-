@@ -77,9 +77,48 @@ export default function FAQ() {
         </div>
 
         <div className="lg:w-1/2 hidden lg:block">
-          {/* Illustration placeholder */}
-          <div className="aspect-square bg-[#EFEBE2] border-2 border-dashed border-[#EBE9E0] rounded-2xl flex items-center justify-center">
-            <span className="text-gray-400 text-sm font-medium">Illustration placeholder</span>
+          <div className="relative aspect-square bg-[#F8F7F2] dark:bg-slate-800 border border-[#EBE9E0] dark:border-slate-700 rounded-2xl p-8 xl:p-10 shadow-sm flex flex-col overflow-hidden">
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div>
+                <p className="text-xs font-bold tracking-[0.2em] uppercase text-gray-500 dark:text-slate-400">
+                  Postcard • Kolkata, India
+                </p>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-slate-300">
+                  From the Builder
+                </p>
+              </div>
+              <div className="shrink-0 rotate-6">
+                <div className="w-14 h-16 border border-dashed border-[#D9D6C6] dark:border-slate-600 bg-[#FDFCF7] dark:bg-slate-900/50 rounded-sm flex items-center justify-center">
+                  <span className="text-[10px] font-bold tracking-widest text-gray-600 dark:text-slate-300">L.INK</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 flex-1">
+              <h3 className="font-serif text-2xl xl:text-3xl font-bold text-gray-900 dark:text-slate-50 leading-tight">
+                Built by Aditya Panna
+              </h3>
+              <p className="font-sans text-sm text-gray-600 dark:text-slate-300 leading-relaxed">
+                I&apos;m a full-stack web developer and B.Tech CSE student in Kolkata who loves building fast, practical web apps that feel clean and useful.
+              </p>
+              <p className="font-sans text-sm text-gray-600 dark:text-slate-300 leading-relaxed">
+                I built L.ink because I wanted a clean, no-clutter place to turn long links into custom short URLs, generate custom QR codes, and track link clicks without bloated tools—so I crafted it end-to-end with React, Node/Express, MongoDB, and Firebase.
+              </p>
+            </div>
+
+            <div className="mt-6 pt-5 border-t border-[#EBE9E0] dark:border-slate-700 flex items-end justify-between gap-4">
+              <div className="flex flex-wrap gap-2">
+                <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase rounded-full border border-[#EBE9E0] dark:border-slate-600 bg-[#FDFCF7] dark:bg-slate-900/50 text-gray-700 dark:text-slate-300">
+                  L.INK
+                </span>
+                <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase rounded-full border border-[#EBE9E0] dark:border-slate-600 bg-[#FDFCF7] dark:bg-slate-900/50 text-gray-700 dark:text-slate-300">
+                  MERN + Firebase
+                </span>
+              </div>
+              <p className="font-serif text-lg font-bold text-gray-900 dark:text-slate-50">
+                — Aditya
+              </p>
+            </div>
           </div>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import ScrollProgress from './components/ScrollProgress';
 import BackToTop from './components/BackToTop';
@@ -16,6 +17,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 export default function App() {
   const [shortenedUrls, setShortenedUrls] = useState([]);
+  const [siteSearchQuery, setSiteSearchQuery] = useState('');
 
   const handleShortened = (newUrl) => {
     setShortenedUrls((prev) => [newUrl, ...prev]);
@@ -27,14 +29,21 @@ export default function App() {
         Skip to content
       </a>
 
-      <Navbar />
+      <Navbar siteSearchQuery={siteSearchQuery} onSiteSearchQueryChange={setSiteSearchQuery} />
       <ScrollProgress />
       <SiteNotice />
 
       <main id="main-content">
         <Routes>
           <Route path="/" element={<Home shortenedUrls={shortenedUrls} onShortened={handleShortened} />} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard siteSearchQuery={siteSearchQuery} onSiteSearchQueryChange={setSiteSearchQuery} />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/qr-generator" element={<QrGenerator />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -45,6 +54,7 @@ export default function App() {
       <BackToTop />
       <FloatingContact />
       <PrintStyles />
+      <Toaster position="bottom-right" />
     </div>
   );
 }

@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom';
 
-export default function MobileMenu({ isOpen, onToggle }) {
+export default function MobileMenu({ isOpen, onToggle, onNavigateFeatures }) {
   const navLinks = [
     { label: 'Home', to: '/' },
-    { href: '#features', label: 'Features' },
+    { label: 'Features', action: 'features' },
     { label: 'Dashboard', to: '/dashboard' },
-    { href: '#about', label: 'About' },
     { label: 'Contact us', to: '/contact' },
   ];
 
@@ -24,8 +23,24 @@ export default function MobileMenu({ isOpen, onToggle }) {
             </button>
           </div>
           <div className="flex flex-col items-center justify-center h-full text-center">
-            {navLinks.map((link) => (
-              link.to ? (
+            {navLinks.map((link) => {
+              if (link.action === 'features') {
+                return (
+                  <button
+                    key={link.label}
+                    type="button"
+                    onClick={(e) => {
+                      onToggle();
+                      onNavigateFeatures?.(e);
+                    }}
+                    className="block px-4 py-4 text-xl font-serif font-bold text-white hover:text-gray-300 transition-colors"
+                  >
+                    {link.label}
+                  </button>
+                );
+              }
+
+              return link.to ? (
                 <Link
                   key={link.label}
                   to={link.to}
@@ -43,13 +58,13 @@ export default function MobileMenu({ isOpen, onToggle }) {
                 >
                   {link.label}
                 </a>
-              )
-            ))}
+              );
+            })}
             <div className="mt-8 flex items-center gap-4">
-              <a href="#login" className="text-sm font-medium text-gray-300 hover:text-white">
+              <Link to="/login" onClick={onToggle} className="text-sm font-medium text-gray-300 hover:text-white">
                 Login
-              </a>
-              <a href="#signup" className="btn-cream">Signup - its free</a>
+              </Link>
+              <Link to="/signup" onClick={onToggle} className="btn-cream">Signup - its free</Link>
             </div>
           </div>
         </div>

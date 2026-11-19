@@ -1,14 +1,16 @@
-import { Link } from 'react-router-dom';
+  import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import MobileMenu from './MobileMenu';
 import SiteSearch from './SiteSearch';
 import { useAuth } from '../context/AuthContext';
 
-export default function Navbar() {
+export default function Navbar({ siteSearchQuery = '', onSiteSearchQueryChange }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const { currentUser, logout } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
@@ -47,20 +49,28 @@ export default function Navbar() {
     await logout();
   };
 
+  const handleFeaturesClick = (e) => {
+    e.preventDefault();
+    setMobileOpen(false);
+    if (location.pathname !== '/') {
+      navigate('/', { state: { scrollTo: 'features' } });
+    } else {
+      document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <>
       <nav className="sticky top-0 z-40 bg-[#FDFCF7]/90 dark:bg-slate-900/90 backdrop-blur border-b border-[#EBE9E0] dark:border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
-            <Link to="/" className="flex items-center gap-2 cursor-pointer">
-              <span className="font-serif font-bold text-xl text-gray-900 dark:text-slate-50 tracking-tight">L.</span>
-              <span className="font-sans font-bold text-xs text-gray-900 dark:text-slate-200 tracking-widest uppercase">ink</span>
-              <span className="text-xs text-gray-500 dark:text-slate-400">™</span>
+            <Link to="/" className="flex items-center cursor-pointer">
+              <img src="/assets/logo.png" alt="L.ink logo" className="h-16 w-auto" />
             </Link>
 
             <div className="hidden lg:flex items-center gap-8 text-sm font-medium text-gray-600 dark:text-slate-400">
               <Link to="/" className="nav-link">Home</Link>
-              <a href="#features" className="nav-link">Features</a>
+              <button type="button" onClick={handleFeaturesClick} className="nav-link">Features</button>
               {currentUser ? (
                 <Link to="/dashboard" className="nav-link">Dashboard</Link>
               ) : (
@@ -70,7 +80,7 @@ export default function Navbar() {
             </div>
 
             <div className="flex items-center gap-4">
-              <SiteSearch />
+              <SiteSearch query={siteSearchQuery} onQueryChange={onSiteSearchQueryChange} />
               <button
                 onClick={toggleTheme}
                 className="p-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-50 transition-colors rounded-lg hover:bg-[#EFEBE2] dark:hover:bg-slate-800"
@@ -115,7 +125,11 @@ export default function Navbar() {
         </div>
       </nav>
 
-      <MobileMenu isOpen={mobileOpen} onToggle={() => setMobileOpen(!mobileOpen)} />
+      <MobileMenu
+        isOpen={mobileOpen}
+        onToggle={() => setMobileOpen(!mobileOpen)}
+        onNavigateFeatures={handleFeaturesClick}
+      />
     </>
   );
 }

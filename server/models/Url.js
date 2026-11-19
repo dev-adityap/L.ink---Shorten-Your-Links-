@@ -19,15 +19,39 @@ const urlSchema = new Schema(
       sparse: true,
       trim: true,
     },
+    userId: {
+      type: String,
+      index: true,
+    },
     clicks: {
       type: Number,
       default: 0,
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
     analytics: [
       {
+        clickedAt: {
+          type: Date,
+          default: Date.now,
+        },
         timestamp: {
           type: Date,
           default: Date.now,
+        },
+        referrer: {
+          type: String,
+          default: 'Direct / None',
+        },
+        device: {
+          type: String,
+          default: 'Desktop',
         },
         userAgent: {
           type: String,

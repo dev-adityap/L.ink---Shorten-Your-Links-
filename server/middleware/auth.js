@@ -1,23 +1,33 @@
-import admin from 'firebase-admin';
+import 'dotenv/config';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
-let serviceAccount;
-try {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-  } else {
-    serviceAccount = {
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    };
-  }
-} catch (error) {
-  console.error('Error parsing Firebase service account:', error);
+const projectId = process.env.FIREBASE_PROJECT_ID;
+const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+const missing = [
+  ['FIREBASE_PROJECT_ID', projectId],
+  ['FIREBASE_CLIENT_EMAIL', clientEmail],
+  ['FIREBASE_PRIVATE_KEY', privateKey],
+]
+  .filter(([, value]) => !value || !String(value).trim())
+  .map(([name]) => name);
+
+if (missing.length) {
+  throw new Error(
+    `Missing required Firebase Admin environment variable(s): ${missing.join(', ')}. ` +
+      'Set them in server/.env before starting the server.'
+  );
 }
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+if (!getApps().length) {
+  initializeApp({
+    credential: cert({
+      projectId,
+      clientEmail,
+      privateKey: privateKey.replace(/\\n/g, '\n'),
+    }),
   });
 }
 
@@ -29,7 +39,7 @@ export const verifyToken = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const decodedToken = await getAuth().verifyIdToken(token);
     req.user = decodedToken;
     next();
   } catch (error) {

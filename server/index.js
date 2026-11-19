@@ -1,14 +1,12 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { connectDB } from './config/db.js';
 import urlRoutes from './routes/url.js';
 import historyRoutes from './routes/history.js';
 import redirectRoutes from './routes/redirect.js';
 import { errorHandler } from './middleware/errorHandler.js';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,23 +30,39 @@ app.use((req, res, next) => {
 });
 
 // CORS configuration
+const parseOrigins = (...values) =>
+  values
+    .flatMap((value) => (value || '').split(','))
+    .map((origin) => origin.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
+const allowedOrigins = Array.from(
+  new Set([
+    ...parseOrigins(process.env.CORS_ORIGIN, process.env.FRONTEND_URL),
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ])
+);
+
 app.use(
   cors({
-    origin: function (origin, callback) {
-      const allowedOrigins = [
-        process.env.FRONTEND_URL,
-        'http://localhost:5173',
-      ].filter(Boolean);
-      if (!origin || allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
-        callback(null, true);
-      } else {
-        callback(null, true); // Allow all in dev for flexibility
-      }
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      const normalized = origin.replace(/\/$/, '');
+      if (allowedOrigins.includes(normalized)) return callback(null, true);
+      if (process.env.CORS_ORIGIN === '*') return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
     },
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   })
 );
+
+// Lightweight health checks for Render/load balancers (no DB dependency)
+app.get(['/api/health', '/health'], (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 // Apply rate limiting
 app.use(limiter);
