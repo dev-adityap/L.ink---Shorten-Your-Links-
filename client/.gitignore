@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.local
+
+# Compiled asset bundles in public assets
+public/assets/*.js
+public/assets/*.css
+public/assets/*.map

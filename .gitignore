@@ -1,4 +1,16 @@
-node_modules
+node_modules/
 .env
+.env.*
+!.env.example
+*.local
 .DS_Store
-dist
+dist/
+build/
+
+# Generated/compiled asset bundles placed in public assets during builds
+client/public/assets/*.js
+client/public/assets/*.css
+client/public/assets/*.map
+public/assets/*.js
+public/assets/*.css
+public/assets/*.map
