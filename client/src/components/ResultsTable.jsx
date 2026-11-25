@@ -37,8 +37,9 @@ export default function ResultsTable({ urls }) {
                   className="border-b border-[#EBE9E0] hover:bg-[#EFEBE2] transition-colors"
                 >
                   <td className="px-6 py-4">
+                    {url.title && <span className="block text-sm font-semibold text-gray-900 truncate max-w-xs" title={url.title}>{url.title}</span>}
                     <div className="flex items-center gap-2">
-                      <span className="font-sans text-sm text-gray-900 truncate max-w-xs">
+                      <span className="font-sans text-sm text-gray-700 truncate max-w-xs" title={url.originalUrl}>
                         {url.originalUrl}
                       </span>
                     </div>
@@ -61,7 +62,7 @@ export default function ResultsTable({ urls }) {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className="font-sans text-sm font-semibold text-gray-900">
-                      {url.clicks}
+                      {Number(url.clicks) || 0}
                     </span>
                   </td>
                 </tr>

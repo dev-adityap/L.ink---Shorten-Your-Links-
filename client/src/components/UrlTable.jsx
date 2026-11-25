@@ -1,4 +1,10 @@
+import { useState } from 'react';
+import { Copy, Check } from 'lucide-react';
+import toast from 'react-hot-toast';
+
 export default function UrlTable({ urls }) {
+  const [copiedId, setCopiedId] = useState(null);
+
   if (!urls || urls.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -6,6 +12,17 @@ export default function UrlTable({ urls }) {
       </div>
     );
   }
+
+  const handleCopy = async (text, id) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      toast.success('Link copied!');
+      setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 2000);
+    } catch {
+      toast.error('Failed to copy. Please copy manually.');
+    }
+  };
 
   return (
     <div className="overflow-x-auto">
@@ -27,52 +44,56 @@ export default function UrlTable({ urls }) {
           </tr>
         </thead>
         <tbody>
-          {urls.map((url) => (
-            <tr key={url._id || url.shortId} className="link-row animate fade-in">
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 truncate max-w-xs">
-                    {url.originalUrl}
-                  </span>
-                </div>
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center text-sm font-mono text-gray-900 truncate max-w-xs">
-                    {`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/${url.shortId}`}
-                  </span>
-                  <button
-                    className="copy-btn"
-                    title="Copy short link"
-                    aria-label="Copy short link"
-                  >
-                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                  <a
-                    href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/${url.shortId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-auto text-xs font-medium text-gray-600 hover:text-gray-900 underline underline-offset-4 transition-colors"
-                  >
-                    Open
-                  </a>
-                </div>
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="text-sm font-semibold text-gray-900">
-                    {url.clicks}
-                  </span>
-                </div>
-              </td>
-              <td className="px-4 py-3 text-xs text-gray-500">
-                {new Date(url.createdAt).toLocaleDateString()}
-              </td>
-            </tr>
-          ))}
+          {urls.map((url) => {
+            const shortUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/${url.shortId}`;
+            const id = url._id || url.shortId;
+            return (
+              <tr key={id} className="link-row animate fade-in">
+                <td className="px-4 py-3">
+                  {url.title && <span className="block text-sm font-semibold text-gray-900 truncate max-w-xs" title={url.title}>{url.title}</span>}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700 truncate max-w-xs" title={url.originalUrl}>
+                      {url.originalUrl}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center text-sm font-mono text-gray-900 truncate max-w-xs">
+                      {shortUrl}
+                    </span>
+                    <button
+                      className="copy-btn"
+                      title={copiedId === id ? 'Copied!' : 'Copy short link'}
+                      aria-label={copiedId === id ? 'Copied short link' : 'Copy short link'}
+                      onClick={() => handleCopy(shortUrl, id)}
+                    >
+                      {copiedId === id ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                    <a
+                      href={shortUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-auto text-xs font-medium text-gray-600 hover:text-gray-900 underline underline-offset-4 transition-colors"
+                    >
+                      Open
+                    </a>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-sm font-semibold text-gray-900">
+                      {Number(url.clicks) || 0}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-500">
+                  {url.createdAt ? new Date(url.createdAt).toLocaleDateString() : '—'}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

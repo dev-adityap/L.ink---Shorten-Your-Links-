@@ -7,6 +7,12 @@ const urlSchema = new Schema(
       required: [true, 'Original URL is required'],
       trim: true,
     },
+    title: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: '',
+    },
     shortId: {
       type: String,
       required: true,
@@ -22,6 +28,7 @@ const urlSchema = new Schema(
     userId: {
       type: String,
       index: true,
+      default: null,
     },
     clicks: {
       type: Number,

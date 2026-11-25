@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 
 export default function CopyToClipboard({ text }) {
   const [copied, setCopied] = useState(false);
@@ -7,8 +8,10 @@ export default function CopyToClipboard({ text }) {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      toast.success('Copied!');
       setTimeout(() => setCopied(false), 2000);
     } catch {
+      toast.error('Failed to copy. Please copy manually.');
       setCopied(false);
     }
   };

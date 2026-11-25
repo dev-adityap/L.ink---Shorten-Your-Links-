@@ -1,14 +1,25 @@
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 
 export default function Login() {
   const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [error, setError] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const redirectTo = location.state?.from?.pathname || '/dashboard';
+
+  useEffect(() => {
+    if (location.state?.message) {
+      toast(location.state.message, { icon: '🔒' });
+      navigate(location.pathname, { replace: true, state: { ...location.state, message: undefined } });
+    }
+  }, [location, navigate]);
 
   const handleEmailSignIn = async (e) => {
     e.preventDefault();
@@ -16,7 +27,7 @@ export default function Login() {
     setIsLoading(true);
     try {
       await login(email, password);
-      navigate('/dashboard');
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(err.message || 'Failed to sign in');
     } finally {
@@ -29,7 +40,7 @@ export default function Login() {
     setIsLoading(true);
     try {
       await loginWithGoogle();
-      navigate('/dashboard');
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to sign in with Google');
@@ -39,9 +50,9 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFCF7] dark:bg-slate-900 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="bg-[#F8F7F2] dark:bg-slate-800 border border-[#EBE9E0] dark:border-slate-700 rounded-2xl p-8 shadow-sm">
+    <div className="min-h-screen bg-[#FDFCF7] dark:bg-slate-900 flex items-center justify-center px-4 py-16 sm:py-20 overflow-x-hidden">
+      <div className="w-full max-w-md min-w-0">
+        <div className="bg-[#F8F7F2] dark:bg-slate-800 border border-[#EBE9E0] dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-sm">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">
               <span className="font-serif font-bold text-2xl text-gray-900 dark:text-slate-50 tracking-tight">L.</span>
@@ -71,7 +82,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 text-sm text-gray-900 dark:text-slate-100 bg-[#FBF9F4] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-600 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400"
+                className="w-full px-4 py-3 min-h-[44px] text-sm text-gray-900 dark:text-slate-100 bg-[#FBF9F4] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-600 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400"
                 placeholder="you@example.com"
               />
             </div>
@@ -83,14 +94,14 @@ export default function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 text-sm text-gray-900 dark:text-slate-100 bg-[#FBF9F4] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-600 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400"
+                className="w-full px-4 py-3 min-h-[44px] text-sm text-gray-900 dark:text-slate-100 bg-[#FBF9F4] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-600 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400"
                 placeholder="••••••••"
               />
             </div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full px-6 py-3 text-xs font-bold text-white bg-gray-900 dark:bg-slate-50 dark:text-gray-900 rounded-xl hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors tracking-tighter uppercase disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full px-6 py-3 min-h-[48px] text-xs font-bold text-white bg-gray-900 dark:bg-slate-50 dark:text-gray-900 rounded-xl hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors tracking-tighter uppercase disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
@@ -102,7 +113,7 @@ export default function Login() {
               type="button"
               onClick={handleGoogleSignIn}
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-[#FBF9F4] dark:bg-slate-700 border border-[#EBE9E0] dark:border-slate-600 text-gray-900 dark:text-slate-50 rounded-xl hover:bg-[#EFEBE2] dark:hover:bg-slate-600 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-3 px-6 py-3 min-h-[48px] bg-[#FBF9F4] dark:bg-slate-700 border border-[#EBE9E0] dark:border-slate-600 text-gray-900 dark:text-slate-50 rounded-xl hover:bg-[#EFEBE2] dark:hover:bg-slate-600 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
                 <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>

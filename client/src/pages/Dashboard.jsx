@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Link2, MousePointerClick, Trophy, Copy, Trash2, Search, Download, Pencil, X, Power, CalendarClock, BarChart3, Smartphone, Monitor, Globe } from 'lucide-react';
+import { Link2, MousePointerClick, Trophy, Copy, Check, Trash2, Search, Download, Pencil, X, Power, CalendarClock, BarChart3, Smartphone, Monitor, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 
@@ -67,6 +67,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
   const [loading, setLoading] = useState(true);
   const [editingLink, setEditingLink] = useState(null);
   const [editOriginalUrl, setEditOriginalUrl] = useState('');
+  const [editTitle, setEditTitle] = useState('');
   const [editAlias, setEditAlias] = useState('');
   const [editExpiresAt, setEditExpiresAt] = useState('');
   const [editSaving, setEditSaving] = useState(false);
@@ -74,6 +75,9 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [insightLinkId, setInsightLinkId] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+  const editTriggerRef = useRef(null);
+  const editCloseRef = useRef(null);
   const { currentUser } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -120,9 +124,11 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
     const shortUrl = `${apiBase}/${shortId}`;
     try {
       await navigator.clipboard.writeText(shortUrl);
+      setCopiedId(shortId);
       toast.success('Link copied to clipboard!');
+      window.setTimeout(() => setCopiedId((prev) => (prev === shortId ? null : prev)), 2000);
     } catch {
-      toast.error('Failed to copy link');
+      toast.error('Failed to copy link. Please copy it manually.');
     }
   };
 
@@ -158,9 +164,11 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
     }
   };
 
-  const handleEditOpen = (link) => {
+  const handleEditOpen = (link, triggerEl) => {
+    editTriggerRef.current = triggerEl || document.activeElement;
     setEditingLink(link);
     setEditOriginalUrl(link.originalUrl || '');
+    setEditTitle(link.title || '');
     setEditAlias(link.customAlias || link.shortId || '');
     setEditExpiresAt(toDateTimeLocalValue(link.expiresAt));
   };
@@ -169,8 +177,10 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
     if (editSaving) return;
     setEditingLink(null);
     setEditOriginalUrl('');
+    setEditTitle('');
     setEditAlias('');
     setEditExpiresAt('');
+    requestAnimationFrame(() => editTriggerRef.current?.focus?.());
   };
 
   const handleEditSave = async (e) => {
@@ -213,6 +223,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
         },
         body: JSON.stringify({
           originalUrl: trimmedUrl,
+          title: editTitle.trim(),
           customAlias: trimmedAlias,
           expiresAt: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
         }),
@@ -232,6 +243,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
       toast.success('Link updated!');
       setEditingLink(null);
       setEditOriginalUrl('');
+      setEditTitle('');
       setEditAlias('');
       setEditExpiresAt('');
     } catch (error) {
@@ -281,6 +293,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
     const query = searchQuery.toLowerCase();
     return (
       (link.originalUrl || '').toLowerCase().includes(query) ||
+      (link.title || '').toLowerCase().includes(query) ||
       (link.shortId || '').toLowerCase().includes(query) ||
       (link.customAlias || '').toLowerCase().includes(query)
     );
@@ -296,18 +309,24 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
   const insightSourceLinks = insightLink ? [insightLink] : filteredUrls;
   const insightAnalytics = insightSourceLinks.flatMap((link) => (Array.isArray(link.analytics) ? link.analytics : []));
   const insightBreakdown = getAnalyticsBreakdown(insightAnalytics);
-  const insightTitle = insightLink ? `Insights for /${insightLink.shortId}` : 'Global Click Insights';
+  const insightTitle = insightLink
+    ? `Insights for ${insightLink.title ? `"${insightLink.title}"` : `/${insightLink.shortId}`}`
+    : 'Global Click Insights';
   const insightSubtitle = insightLink
     ? 'Device and referrer breakdown for the selected link'
     : 'Device and referrer breakdown across filtered links';
 
-  const chartData = [...filteredUrls]
-    .sort((a, b) => (b.clicks || 0) - (a.clicks || 0))
+  const safeChartData = Array.isArray(filteredUrls) ? filteredUrls : [];
+  const chartData = [...safeChartData]
+    .sort((a, b) => (Number(b.clicks) || 0) - (Number(a.clicks) || 0))
     .slice(0, 10)
     .map((link) => ({
-      name: link.shortId || link.customAlias,
-      clicks: link.clicks || 0,
+      name: link.customAlias || link.shortId || 'link',
+      clicks: Number(link.clicks) || 0,
     }));
+
+  const totalClicksSafe = Number.isFinite(totalClicks) ? totalClicks : 0;
+  const topLinkClicks = Number(topLink?.clicks) || 0;
 
   const filteredIds = filteredUrls.map((link) => link._id);
   const allFilteredSelected = filteredUrls.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
@@ -380,7 +399,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
     }
 
     const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    const headers = ['Original URL', 'Short Alias', 'Short URL', 'Clicks', 'Status', 'Expires At', 'Created At'];
+    const headers = ['Title', 'Original URL', 'Short Alias', 'Short URL', 'Clicks', 'Status', 'Expires At', 'Created At'];
 
     const escapeCsv = (value) => {
       const str = value == null ? '' : String(value);
@@ -394,10 +413,11 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
       const expiresAt = link.expiresAt ? new Date(link.expiresAt).toISOString() : '';
       const status = getLinkStatus(link);
       return [
+        link.title || '',
         link.originalUrl || '',
         shortAlias,
         shortUrl,
-        link.clicks ?? 0,
+        Number(link.clicks) || 0,
         status,
         expiresAt,
         createdAt,
@@ -417,9 +437,19 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
     toast.success('CSV export started');
   };
 
+  useEffect(() => {
+    if (!editingLink) return;
+    const onKeyDown = (e) => { if (e.key === 'Escape') handleEditClose(); };
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+    requestAnimationFrame(() => editCloseRef.current?.focus?.());
+    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKeyDown); };
+  }, [editingLink, editSaving]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FDFCF7] dark:bg-slate-900 py-20 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-[#FDFCF7] dark:bg-slate-900 py-16 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto">
           <div className="skeleton h-8 w-48 mb-8"></div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -433,8 +463,8 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFCF7] dark:bg-slate-900 py-20 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-[#FDFCF7] dark:bg-slate-900 py-16 sm:py-20 px-4 sm:px-6 lg:px-8 overflow-x-hidden">
+      <div className="max-w-6xl mx-auto min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
           <div>
             <h1 className="font-serif text-4xl font-bold text-gray-900 dark:text-[#FDFCF7] mb-2">
@@ -448,7 +478,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
             type="button"
             onClick={handleExportCsv}
             disabled={filteredUrls.length === 0}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold bg-[#F8F7F2] border border-[#EBE9E0] text-gray-900 rounded-lg hover:bg-[#EFEBE2] transition-colors dark:bg-slate-800 dark:border-slate-700 dark:text-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] text-sm font-semibold bg-[#F8F7F2] border border-[#EBE9E0] text-gray-900 rounded-lg hover:bg-[#EFEBE2] transition-colors dark:bg-slate-800 dark:border-slate-700 dark:text-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
           >
             <Download className="w-4 h-4" />
             Export CSV
@@ -474,7 +504,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
               </h3>
               <MousePointerClick className="w-5 h-5 text-gray-900 dark:text-slate-50" />
             </div>
-            <p className="text-3xl font-bold text-gray-900 dark:text-slate-50">{totalClicks}</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-slate-50">{totalClicksSafe}</p>
           </div>
 
           <div className="bg-[#F8F7F2] dark:bg-slate-800 border border-[#EBE9E0] dark:border-slate-700 rounded-xl p-6">
@@ -485,9 +515,9 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
               <Trophy className="w-5 h-5 text-gray-900 dark:text-slate-50" />
             </div>
             <p className="text-lg font-bold text-gray-900 dark:text-slate-50 truncate">
-              {topLink ? `/${topLink.shortId}` : 'N/A'}
+              {topLink ? (topLink.title || `/${topLink.shortId}`) : 'N/A'}
             </p>
-            <p className="text-sm text-gray-500 dark:text-slate-400">{topLink?.clicks || 0} clicks</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{topLinkClicks} clicks</p>
           </div>
         </div>
 
@@ -495,21 +525,27 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
         <div className="bg-[#F8F7F2] dark:bg-slate-800 border border-[#EBE9E0] dark:border-slate-700 rounded-xl p-6 mb-8">
           <h2 className="text-lg font-bold text-gray-900 dark:text-slate-50 mb-6">Click Volume by Link</h2>
           <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#EBE9E0" />
-                <XAxis dataKey="name" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#F8F7F2',
-                    border: '1px solid #EBE9E0',
-                    borderRadius: '8px',
-                  }}
-                />
-                <Bar dataKey="clicks" fill="#111111" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#EBE9E0" />
+                  <XAxis dataKey="name" stroke="#6b7280" />
+                  <YAxis stroke="#6b7280" allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#F8F7F2',
+                      border: '1px solid #EBE9E0',
+                      borderRadius: '8px',
+                    }}
+                  />
+                  <Bar dataKey="clicks" fill="#111111" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-gray-500 dark:text-slate-400 border border-dashed border-[#EBE9E0] dark:border-slate-700 rounded-lg">
+                {searchQuery ? 'No matching links to chart.' : 'No click data yet.'}
+              </div>
+            )}
           </div>
         </div>
 
@@ -639,7 +675,8 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
                   }}
                   onChange={toggleSelectAllFiltered}
                   disabled={filteredUrls.length === 0}
-                  className="h-4 w-4 rounded border-[#EBE9E0] dark:border-slate-600 text-gray-900 dark:text-slate-50 focus:ring-slate-400 dark:focus:ring-slate-500 bg-[#FDFCF7] dark:bg-slate-900"
+                  aria-label="Select all filtered links"
+                  className="h-4 w-4 rounded border-[#EBE9E0] dark:border-slate-600 text-gray-900 dark:text-slate-50 focus:ring-slate-400 dark:focus:ring-slate-500 bg-[#FDFCF7] dark:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50"
                 />
                 Select All (filtered)
               </label>
@@ -657,17 +694,18 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
                   }
                 }}
                 placeholder="Search links..."
-                className="w-full pl-10 pr-9 py-2.5 text-sm bg-[#F8F7F2] dark:bg-slate-800 border border-[#EBE9E0] dark:border-slate-700 rounded-lg text-gray-900 dark:text-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 transition-shadow"
+                aria-label="Search links by title, URL, or alias"
+                className="w-full pl-10 pr-10 py-2.5 min-h-[44px] text-sm bg-[#F8F7F2] dark:bg-slate-800 border border-[#EBE9E0] dark:border-slate-700 rounded-lg text-gray-900 dark:text-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 transition-shadow"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50"
                   aria-label="Clear search"
                   title="Clear search"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -706,80 +744,91 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
 
                     return (
                       <tr key={link._id} className="border-b border-[#EBE9E0] dark:border-slate-700 hover:bg-[#FBF9F4] dark:hover:bg-slate-700/50 transition-colors">
-                        <td className="px-6 py-4">
+                        <td className="px-4 sm:px-6 py-4">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleSelect(link._id)}
-                            aria-label={`Select link ${link.shortId}`}
-                            className="h-4 w-4 rounded border-[#EBE9E0] dark:border-slate-600 text-gray-900 dark:text-slate-50 focus:ring-slate-400 dark:focus:ring-slate-500 bg-[#FDFCF7] dark:bg-slate-900"
+                            aria-label={`Select link ${link.title || `/${link.shortId}`}`}
+                            className="h-5 w-5 rounded border-[#EBE9E0] dark:border-slate-600 text-gray-900 dark:text-slate-50 focus:ring-slate-400 dark:focus:ring-slate-500 bg-[#FDFCF7] dark:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50"
                           />
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm text-gray-900 dark:text-slate-50">
+                        <td className="px-4 sm:px-6 py-4">
+                          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                            <span className="font-mono text-sm text-gray-900 dark:text-slate-50 truncate max-w-[8rem] sm:max-w-none">
                               /{link.shortId}
                             </span>
                             <button
                               onClick={() => handleCopy(link.shortId)}
-                              className="p-1 text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-white transition-colors"
-                              aria-label="Copy short link"
-                              title="Copy short link"
+                              className="p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-white transition-colors rounded-lg shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8F7F2] dark:focus-visible:ring-offset-slate-800"
+                              aria-label={copiedId === link.shortId ? `Copied short link /${link.shortId}` : `Copy short link /${link.shortId}`}
+                              title={copiedId === link.shortId ? 'Copied!' : 'Copy short link'}
                             >
-                              <Copy className="w-4 h-4" />
+                              {copiedId === link.shortId ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
                             </button>
                             <button
                               onClick={() => setInsightLinkId((prev) => (prev === link._id ? null : link._id))}
-                              className={`p-1 transition-colors ${insightLinkId === link._id ? 'text-gray-900 dark:text-slate-50' : 'text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-white'}`}
-                              aria-label="View insights"
+                              className={`p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center transition-colors rounded-lg shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8F7F2] dark:focus-visible:ring-offset-slate-800 ${insightLinkId === link._id ? 'text-gray-900 dark:text-slate-50 bg-[#EFEBE2] dark:bg-slate-700' : 'text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-white'}`}
+                              aria-label={`View insights for ${link.title || `/${link.shortId}`}`}
+                              aria-pressed={insightLinkId === link._id}
                               title="View insights"
                             >
                               <BarChart3 className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => handleEditOpen(link)}
-                              className="p-1 text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-white transition-colors"
-                              aria-label="Edit link"
+                              onClick={(e) => handleEditOpen(link, e.currentTarget)}
+                              className="p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-white transition-colors rounded-lg shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8F7F2] dark:focus-visible:ring-offset-slate-800"
+                              aria-label={`Edit link ${link.title || `/${link.shortId}`}`}
                               title="Edit link"
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDelete(link._id)}
-                              className="p-1 text-gray-500 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-500 transition-colors duration-200"
-                              aria-label="Delete link"
+                              className="p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-gray-500 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-500 transition-colors duration-200 rounded-lg shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8F7F2] dark:focus-visible:ring-offset-slate-800"
+                              aria-label={`Delete link ${link.title || `/${link.shortId}`}`}
                               title="Delete link"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-gray-600 dark:text-slate-300 truncate block max-w-xs">
+                        <td className="px-4 sm:px-6 py-4 min-w-0">
+                          {link.title ? (
+                            <span className="block text-sm font-semibold text-gray-900 dark:text-slate-50 truncate max-w-[12rem] sm:max-w-xs" title={link.title}>
+                              {link.title}
+                            </span>
+                          ) : (
+                            <span className="block text-sm font-semibold text-gray-900 dark:text-slate-50 truncate max-w-[12rem] sm:max-w-xs" title={`/${link.shortId}`}>
+                              /{link.shortId}
+                            </span>
+                          )}
+                          <span className="text-sm text-gray-600 dark:text-slate-300 truncate block max-w-[12rem] sm:max-w-xs" title={link.originalUrl}>
                             {link.originalUrl}
                           </span>
-                          {link.expiresAt && (
+                          {link.expiresAt && getLinkStatus(link) !== 'Expired' && (
                             <span className="mt-1 inline-flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400">
-                              <CalendarClock className="w-3.5 h-3.5" />
-                              Expires {new Date(link.expiresAt).toLocaleString()}
+                              <CalendarClock className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">Expires {new Date(link.expiresAt).toLocaleString()}</span>
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${statusStyles[status]}`}>
+                        <td className="px-4 sm:px-6 py-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                            <span className={`inline-flex items-center justify-center px-2.5 py-1 text-xs font-semibold rounded-full border w-fit ${statusStyles[status]}`}>
                               {status}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleToggleActive(link)}
                               disabled={isToggling}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-xs font-semibold rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8F7F2] dark:focus-visible:ring-offset-slate-800 ${
                                 isActive
                                   ? 'bg-[#F8F7F2] text-gray-900 border-[#EBE9E0] hover:bg-[#EFEBE2] dark:bg-slate-800 dark:text-slate-50 dark:border-slate-700 dark:hover:bg-slate-700'
                                   : 'bg-gray-900 text-white border-gray-900 hover:bg-gray-800 dark:bg-slate-50 dark:text-gray-900 dark:border-slate-50 dark:hover:bg-slate-200'
                               }`}
-                              aria-label={isActive ? 'Pause link' : 'Activate link'}
+                              aria-label={isActive ? `Pause link ${link.title || `/${link.shortId}`}` : `Activate link ${link.title || `/${link.shortId}`}`}
+                              aria-pressed={!isActive}
                               title={isActive ? 'Pause link' : 'Activate link'}
                             >
                               <Power className="w-3.5 h-3.5" />
@@ -802,14 +851,18 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
                   })
                 ) : links.length > 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-slate-400">
-                      No links match your search.
+                    <td colSpan={6} className="px-6 py-12 text-center">
+                      <p className="text-gray-700 dark:text-slate-300 font-medium mb-2">No links match your search.</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">Try a different keyword or clear the filter.</p>
+                      <button type="button" onClick={() => setSearchQuery('')} className="inline-flex items-center justify-center px-4 py-2.5 min-h-[44px] text-sm font-semibold bg-gray-900 dark:bg-slate-50 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors">Clear search</button>
                     </td>
                   </tr>
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-slate-400">
-                      No links yet.
+                    <td colSpan={6} className="px-6 py-12 text-center">
+                      <p className="text-gray-700 dark:text-slate-300 font-medium mb-2">No links yet.</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">Create your first short link to start tracking clicks.</p>
+                      <button type="button" onClick={() => navigate('/')} className="inline-flex items-center justify-center px-4 py-2.5 min-h-[44px] text-sm font-semibold bg-gray-900 dark:bg-slate-50 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors">Create a link</button>
                     </td>
                   </tr>
                 )}
@@ -820,18 +873,19 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
       </div>
 
       {editingLink && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto">
           <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={handleEditClose} />
-          <div className="relative w-full max-w-lg bg-[#FDFCF7] dark:bg-slate-800 border border-[#EBE9E0] dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-xl">
+          <div className="relative w-full max-w-lg bg-[#FDFCF7] dark:bg-slate-800 border border-[#EBE9E0] dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-xl my-auto max-h-[calc(100vh-3rem)] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="edit-link-title">
             <button
+              ref={editCloseRef}
               type="button"
               onClick={handleEditClose}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-50 transition-colors"
-              aria-label="Close"
+              className="absolute top-3 right-3 p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-50 transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50"
+              aria-label="Close edit dialog"
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="font-serif text-xl font-bold text-gray-900 dark:text-slate-50 mb-2">
+            <h3 id="edit-link-title" className="font-serif text-xl font-bold text-gray-900 dark:text-slate-50 mb-2">
               Edit Link
             </h3>
             <p className="text-sm text-gray-600 dark:text-slate-400 mb-6">
@@ -855,6 +909,21 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
               </div>
 
               <div>
+                <label htmlFor="edit-title" className="block text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                  Link Title (optional)
+                </label>
+                <input
+                  id="edit-title"
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  maxLength={100}
+                  className="w-full px-4 py-3 text-sm text-gray-900 dark:text-slate-100 bg-[#F8F7F2] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400"
+                  placeholder="e.g., Portfolio, Campaign Link"
+                />
+              </div>
+
+              <div>
                 <label htmlFor="edit-alias" className="block text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-2">
                   Custom Alias
                 </label>
@@ -872,9 +941,14 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
               </div>
 
               <div>
-                <label htmlFor="edit-expires-at" className="block text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-2">
-                  Expiration Date (optional)
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="edit-expires-at" className="block text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider">
+                    Expiration Date (optional)
+                  </label>
+                  {editExpiresAt && (
+                    <button type="button" onClick={() => setEditExpiresAt('')} className="text-xs text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-50 underline underline-offset-2">Clear</button>
+                  )}
+                </div>
                 <input
                   id="edit-expires-at"
                   type="datetime-local"
@@ -883,23 +957,23 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
                   className="w-full px-4 py-3 text-sm text-gray-900 dark:text-slate-100 bg-[#F8F7F2] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50"
                 />
                 <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-                  Leave empty to remove expiration.
+                  Leave empty to keep this link active indefinitely.
                 </p>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={handleEditClose}
                   disabled={editSaving}
-                  className="px-4 py-2.5 text-sm font-semibold text-gray-900 dark:text-slate-50 bg-[#F8F7F2] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-lg hover:bg-[#EFEBE2] dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2.5 min-h-[44px] text-sm font-semibold text-gray-900 dark:text-slate-50 bg-[#F8F7F2] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-lg hover:bg-[#EFEBE2] dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={editSaving}
-                  className="px-4 py-2.5 text-sm font-semibold text-white bg-gray-900 dark:bg-slate-50 dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2.5 min-h-[44px] text-sm font-semibold text-white bg-gray-900 dark:bg-slate-50 dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FDFCF7] dark:focus-visible:ring-offset-slate-800"
                 >
                   {editSaving ? 'Saving...' : 'Save Changes'}
                 </button>

@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import Url from '../models/Url.js';
 import { generateShortId } from '../utils/shortId.js';
 import { validateShorten } from '../middleware/validate.js';
-import { verifyToken } from '../middleware/auth.js';
+import { verifyToken, optionalVerifyToken } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import { getAuth } from 'firebase-admin/auth';
 
@@ -26,6 +26,15 @@ const shortenLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const guestShortenLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: 'Too many guest requests. Sign in for a higher limit or try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => !!req.user,
+});
+
 const RESERVED_ALIASES = new Set(['api', 'health', 'urls', 'shorten', 'analytics', 'favicon.ico', 'robots.txt', 'sitemap.xml']);
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -40,6 +49,7 @@ const isHttpUrl = (value) => {
 };
 
 const normalizeAlias = (value) => (typeof value === 'string' ? value.trim() : '');
+const normalizeTitle = (value) => (typeof value === 'string' ? value.trim().slice(0, 100) : '');
 
 const validateAlias = (alias) => {
   if (!alias) return { ok: true, value: '' };
@@ -67,27 +77,30 @@ const getOptionalUserId = async (req) => {
   }
 };
 
-const parseExpiresAt = (value) => {
+const parseExpiresAt = (value, { requireFuture = false } = {}) => {
   if (value === undefined) return { provided: false };
   if (value === null || value === '') return { provided: true, value: null };
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return { provided: true, error: 'Please provide a valid expiration date' };
   }
+  if (requireFuture && date.getTime() <= Date.now()) {
+    return { provided: true, error: 'Expiration date must be in the future' };
+  }
   return { provided: true, value: date };
 };
 
 /**
  * POST /api/shorten
- * Accepts an original URL, optional customAlias/expiresAt, creates a new entry (or returns an existing one),
- * and returns the shortened data.
+ * Guest-first: allows unauthenticated basic short links. Custom alias/expiration require auth.
  */
-router.post('/shorten', shortenLimiter, validateShorten, async (req, res, next) => {
+router.post('/shorten', shortenLimiter, optionalVerifyToken, guestShortenLimiter, validateShorten, async (req, res, next) => {
   try {
     const { originalUrl } = req.body;
     const customAlias = normalizeAlias(req.body.customAlias);
-    const userId = await getOptionalUserId(req);
-    const expiresAt = parseExpiresAt(req.body.expiresAt);
+    const title = normalizeTitle(req.body.title);
+    const userId = req.user?.uid || null;
+    const expiresAt = parseExpiresAt(req.body.expiresAt, { requireFuture: true });
 
     if (expiresAt.error) {
       return res.status(400).json({ success: false, message: expiresAt.error });
@@ -96,6 +109,11 @@ router.post('/shorten', shortenLimiter, validateShorten, async (req, res, next) 
     // Defense in depth: enforce http/https even if middleware is bypassed
     if (!isHttpUrl(originalUrl)) {
       return res.status(400).json({ success: false, message: 'Please enter a valid URL (include http:// or https://)' });
+    }
+
+    // Guest gating: advanced options require sign-in
+    if (!userId && (customAlias || expiresAt.provided)) {
+      return res.status(401).json({ success: false, message: 'Sign in to use custom aliases and link controls' });
     }
 
     const aliasCheck = validateAlias(customAlias);
@@ -128,6 +146,7 @@ router.post('/shorten', shortenLimiter, validateShorten, async (req, res, next) 
             clicks: url.clicks,
             createdAt: url.createdAt,
             customAlias: url.customAlias,
+            title: url.title,
             isActive: url.isActive,
             expiresAt: url.expiresAt,
           },
@@ -155,7 +174,8 @@ router.post('/shorten', shortenLimiter, validateShorten, async (req, res, next) 
       originalUrl,
       shortId,
       customAlias: safeAlias,
-      ...(userId ? { userId } : {}),
+      ...(title ? { title } : {}),
+      userId: userId || null,
       ...(expiresAt.provided ? { expiresAt: expiresAt.value } : {}),
     });
 
@@ -170,6 +190,7 @@ router.post('/shorten', shortenLimiter, validateShorten, async (req, res, next) 
         clicks: url.clicks,
         createdAt: url.createdAt,
         customAlias: url.customAlias,
+        title: url.title,
         isActive: url.isActive,
         expiresAt: url.expiresAt,
       },
@@ -258,6 +279,10 @@ router.patch('/urls/:id', verifyToken, async (req, res, next) => {
       url.originalUrl = trimmedUrl;
     }
 
+    if (Object.prototype.hasOwnProperty.call(req.body, 'title')) {
+      url.title = normalizeTitle(req.body.title);
+    }
+
     const hasAliasInput =
       Object.prototype.hasOwnProperty.call(req.body, 'customAlias') ||
       Object.prototype.hasOwnProperty.call(req.body, 'alias') ||
@@ -289,7 +314,7 @@ router.patch('/urls/:id', verifyToken, async (req, res, next) => {
       url.isActive = req.body.isActive;
     }
 
-    const expiresAt = parseExpiresAt(req.body.expiresAt);
+    const expiresAt = parseExpiresAt(req.body.expiresAt, { requireFuture: true });
     if (expiresAt.error) {
       return res.status(400).json({ success: false, message: expiresAt.error });
     }
@@ -331,6 +356,37 @@ router.post('/urls/bulk-delete', verifyToken, async (req, res, next) => {
     });
 
     res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/urls/claim
+ * Claims unclaimed guest links for the authenticated user.
+ */
+router.post('/urls/claim', verifyToken, async (req, res, next) => {
+  try {
+    const { shortIds } = req.body || {};
+    if (!Array.isArray(shortIds) || shortIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'shortIds must be a non-empty array' });
+    }
+
+    const cleaned = [...new Set(shortIds
+      .filter((id) => typeof id === 'string')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0 && id.length <= 100))].slice(0, 100);
+
+    if (cleaned.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid shortIds provided' });
+    }
+
+    const result = await Url.updateMany(
+      { shortId: { $in: cleaned }, $or: [{ userId: null }, { userId: { $exists: false } }] },
+      { $set: { userId: req.user.uid } }
+    );
+
+    res.json({ success: true, claimedCount: result.modifiedCount || 0 });
   } catch (error) {
     next(error);
   }

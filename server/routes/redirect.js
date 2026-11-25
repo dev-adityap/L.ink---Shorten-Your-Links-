@@ -40,7 +40,12 @@ router.get('/:shortId', async (req, res, next) => {
 
     const isExpired = url.expiresAt && new Date() > new Date(url.expiresAt);
     if (isExpired) {
-      return res.status(410).json({ success: false, message: 'This link has expired' });
+      const frontendBase = (process.env.FRONTEND_URL || process.env.CORS_ORIGIN || '').split(',')[0]?.trim().replace(/\/$/, '') || 'https://link.ink';
+      const homeUrl = frontendBase || '/';
+      if (req.accepts('html')) {
+        return res.status(410).type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Link Expired · L.ink</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#FDFCF7;color:#111827;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:24px}main{max-width:560px;background:#F8F7F2;border:1px solid #EBE9E0;border-radius:16px;padding:32px;box-shadow:0 1px 2px rgba(0,0,0,.04)}h1{margin:0 0 8px;font-size:28px;line-height:1.2}p{margin:0 0 20px;color:#4b5563;line-height:1.6}a{display:inline-flex;align-items:center;justify-content:center;padding:12px 18px;border-radius:10px;background:#111827;color:#fff;text-decoration:none;font-weight:600}a:focus-visible{outline:2px solid #111827;outline-offset:2px}@media(prefers-color-scheme:dark){body{background:#0f172a;color:#f8fafc}main{background:#1e293b;border-color:#334155}p{color:#cbd5e1}a{background:#f8fafc;color:#0f172a}}</style></head><body><main><h1>This link has expired</h1><p>The short link you opened is no longer active. You can create a new link or manage your links on L.ink.</p><a href="${homeUrl}">Go to L.ink</a></main></body></html>`);
+      }
+      return res.status(410).json({ success: false, message: 'This link has expired', homeUrl });
     }
 
     if (!url.isActive) {

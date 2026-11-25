@@ -180,7 +180,7 @@ export default function Contact() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full px-6 py-3 text-xs font-bold text-white bg-gray-900 dark:bg-slate-50 dark:text-gray-900 rounded-xl hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors tracking-tighter uppercase disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full px-6 py-3 min-h-[48px] text-xs font-bold text-white bg-gray-900 dark:bg-slate-50 dark:text-gray-900 rounded-xl hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors tracking-tighter uppercase disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? 'Sending...' : 'Send Message'}
               </button>

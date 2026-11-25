@@ -27,6 +27,11 @@ export const validateShorten = [
     .withMessage('Custom alias must be between 1 and 50 characters')
     .matches(/^[A-Za-z0-9_-]+$/)
     .withMessage('Custom alias can only contain letters, numbers, hyphens, and underscores'),
+  body('title')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Title must be 100 characters or fewer'),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -36,6 +41,7 @@ export const validateShorten = [
     // Normalize trimmed values back onto body for downstream handlers
     if (typeof req.body.originalUrl === 'string') req.body.originalUrl = req.body.originalUrl.trim();
     if (typeof req.body.customAlias === 'string') req.body.customAlias = req.body.customAlias.trim();
+    if (typeof req.body.title === 'string') req.body.title = req.body.title.trim();
     next();
   },
 ];

@@ -47,4 +47,21 @@ export const verifyToken = async (req, res, next) => {
   }
 };
 
+export const optionalVerifyToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      req.user = null;
+      return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decodedToken = await getAuth().verifyIdToken(token);
+    req.user = decodedToken;
+    return next();
+  } catch (error) {
+    return res.status(401).json({ success: false, message: 'Unauthorized: Invalid token' });
+  }
+};
+
 export default verifyToken;
