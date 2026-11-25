@@ -90,6 +90,16 @@ const parseExpiresAt = (value, { requireFuture = false } = {}) => {
   return { provided: true, value: date };
 };
 
+const parseMaxClicks = (value) => {
+  if (value === undefined) return { provided: false };
+  if (value === null || value === '') return { provided: true, value: null };
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) {
+    return { provided: true, error: 'Max clicks must be a positive integer' };
+  }
+  return { provided: true, value: n };
+};
+
 /**
  * POST /api/shorten
  * Guest-first: allows unauthenticated basic short links. Custom alias/expiration require auth.
@@ -101,9 +111,13 @@ router.post('/shorten', shortenLimiter, optionalVerifyToken, guestShortenLimiter
     const title = normalizeTitle(req.body.title);
     const userId = req.user?.uid || null;
     const expiresAt = parseExpiresAt(req.body.expiresAt, { requireFuture: true });
+    const maxClicks = parseMaxClicks(req.body.maxClicks);
 
     if (expiresAt.error) {
       return res.status(400).json({ success: false, message: expiresAt.error });
+    }
+    if (maxClicks.error) {
+      return res.status(400).json({ success: false, message: maxClicks.error });
     }
 
     // Defense in depth: enforce http/https even if middleware is bypassed
@@ -112,7 +126,7 @@ router.post('/shorten', shortenLimiter, optionalVerifyToken, guestShortenLimiter
     }
 
     // Guest gating: advanced options require sign-in
-    if (!userId && (customAlias || expiresAt.provided)) {
+    if (!userId && (customAlias || expiresAt.provided || maxClicks.provided)) {
       return res.status(401).json({ success: false, message: 'Sign in to use custom aliases and link controls' });
     }
 
@@ -149,6 +163,7 @@ router.post('/shorten', shortenLimiter, optionalVerifyToken, guestShortenLimiter
             title: url.title,
             isActive: url.isActive,
             expiresAt: url.expiresAt,
+            maxClicks: url.maxClicks,
           },
         });
       }
@@ -177,6 +192,7 @@ router.post('/shorten', shortenLimiter, optionalVerifyToken, guestShortenLimiter
       ...(title ? { title } : {}),
       userId: userId || null,
       ...(expiresAt.provided ? { expiresAt: expiresAt.value } : {}),
+      ...(maxClicks.provided ? { maxClicks: maxClicks.value } : {}),
     });
 
     const shortUrl = `${getBaseUrl()}/${url.shortId}`;
@@ -193,6 +209,7 @@ router.post('/shorten', shortenLimiter, optionalVerifyToken, guestShortenLimiter
         title: url.title,
         isActive: url.isActive,
         expiresAt: url.expiresAt,
+        maxClicks: url.maxClicks,
       },
     });
   } catch (error) {
@@ -320,6 +337,14 @@ router.patch('/urls/:id', verifyToken, async (req, res, next) => {
     }
     if (expiresAt.provided) {
       url.expiresAt = expiresAt.value;
+    }
+
+    const maxClicks = parseMaxClicks(req.body.maxClicks);
+    if (maxClicks.error) {
+      return res.status(400).json({ success: false, message: maxClicks.error });
+    }
+    if (maxClicks.provided) {
+      url.maxClicks = maxClicks.value;
     }
 
     await url.save();

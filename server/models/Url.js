@@ -42,6 +42,11 @@ const urlSchema = new Schema(
       type: Date,
       default: null,
     },
+    maxClicks: {
+      type: Number,
+      default: null,
+      min: 1,
+    },
     analytics: [
       {
         clickedAt: {

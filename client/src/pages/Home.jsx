@@ -62,6 +62,11 @@ export default function Home({ shortenedUrls, onShortened }) {
   const [title, setTitle] = useState('');
   const [customAlias, setCustomAlias] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
+  const [maxClicks, setMaxClicks] = useState('');
+  const [utmSource, setUtmSource] = useState('');
+  const [utmMedium, setUtmMedium] = useState('');
+  const [utmCampaign, setUtmCampaign] = useState('');
+  const [showUtm, setShowUtm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
@@ -72,6 +77,9 @@ export default function Home({ shortenedUrls, onShortened }) {
   const [dotsType, setDotsType] = useState('square');
   const [cornersSquareType, setCornersSquareType] = useState('square');
   const [isCustomizing, setIsCustomizing] = useState(false);
+  const [qrBadgeMode, setQrBadgeMode] = useState('none');
+  const [qrBadgeText, setQrBadgeText] = useState('');
+  const [qrDownloadFeedback, setQrDownloadFeedback] = useState('');
   const [analyticsModalOpen, setAnalyticsModalOpen] = useState(false);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [selectedShortId, setSelectedShortId] = useState('');
@@ -83,19 +91,36 @@ export default function Home({ shortenedUrls, onShortened }) {
   const qrCloseRef = useRef(null);
   const analyticsCloseRef = useRef(null);
 
-  useEffect(() => {
-    if (location.state?.scrollTo === 'features' || location.hash === '#features') {
-      const scrollToFeatures = () => {
-        document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
-      };
-      requestAnimationFrame(scrollToFeatures);
-      navigate(location.pathname, { replace: true, state: {} });
+  function buildTaggedUrl(raw, utm) {
+    const trimmed = (raw || '').trim();
+    if (!trimmed) return { url: '', error: null };
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { url: trimmed, error: 'UTM tags require a valid http:// or https:// URL' };
+      }
+      for (const [key, value] of Object.entries(utm)) {
+        if (value) parsed.searchParams.set(key, value);
+      }
+      return { url: parsed.toString(), error: null };
+    } catch {
+      return { url: trimmed, error: Object.values(utm).some(Boolean) ? 'Enter a valid URL before adding UTM parameters' : null };
     }
-  }, [location, navigate]);
+  }
+
+  const utmFields = { utm_source: utmSource.trim(), utm_medium: utmMedium.trim(), utm_campaign: utmCampaign.trim() };
+  const hasUtm = Object.values(utmFields).some(Boolean);
+  const taggedDestination = buildTaggedUrl(url, utmFields);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    const destination = buildTaggedUrl(url, utmFields);
+    if (hasUtm && destination.error) {
+      setError(destination.error);
+      return;
+    }
+    const finalUrl = destination.url || url.trim();
     setLoading(true);
 
     try {
@@ -111,12 +136,14 @@ export default function Home({ shortenedUrls, onShortened }) {
       }
 
       const payload = {
-        originalUrl: url,
+        originalUrl: finalUrl,
         title: title.trim() || undefined,
       };
       if (currentUser) {
         payload.customAlias = customAlias || undefined;
         payload.expiresAt = expiresAt ? new Date(expiresAt).toISOString() : null;
+        const parsedMax = maxClicks === '' ? null : Number(maxClicks);
+        payload.maxClicks = Number.isInteger(parsedMax) && parsedMax >= 1 ? parsedMax : null;
       }
 
       const response = await fetch(`${apiBase}/api/shorten`, {
@@ -141,6 +168,11 @@ export default function Home({ shortenedUrls, onShortened }) {
         setTitle('');
         setCustomAlias('');
         setExpiresAt('');
+        setMaxClicks('');
+        setUtmSource('');
+        setUtmMedium('');
+        setUtmCampaign('');
+        setShowUtm(false);
       }
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
@@ -169,6 +201,9 @@ export default function Home({ shortenedUrls, onShortened }) {
     setDotsType('square');
     setCornersSquareType('square');
     setIsCustomizing(false);
+    setQrBadgeMode('none');
+    setQrBadgeText('');
+    setQrDownloadFeedback('');
     setQrModalOpen(true);
   };
 
@@ -204,10 +239,48 @@ export default function Home({ shortenedUrls, onShortened }) {
     }
   };
 
-  const getQrOptions = (data) => ({
-    width: 200,
-    height: 200,
+  const closeAnalytics = () => {
+    setAnalyticsModalOpen(false);
+    requestAnimationFrame(() => analyticsTriggerRef.current?.focus?.());
+  };
+
+  const makeBadgeDataUrl = (mode, text, fg, bg) => {
+    const size = 256;
+    const pad = 18;
+    const inner = size - pad * 2;
+    const radius = inner / 2;
+    const safeText = (text || '').trim().slice(0, 3).toUpperCase() || 'L';
+    const fontSize = safeText.length === 1 ? 112 : safeText.length === 2 ? 88 : 70;
+    const brandMark = `
+      <g transform="translate(58,66)">
+        <rect x="0" y="0" width="140" height="124" rx="30" fill="${fg}"/>
+        <path d="M42 32h22v44h34v18H42z" fill="${bg}"/>
+        <circle cx="106" cy="86" r="8" fill="#D97757"/>
+      </g>`;
+    const initials = `
+      <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle"
+        font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fg}" letter-spacing="${safeText.length > 1 ? 1 : 0}">${safeText}</text>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" shape-rendering="geometricPrecision">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${inner / 2}" fill="${bg}"/>
+      <circle cx="${size / 2}" cy="${size / 2}" r="${inner / 2 - 5}" fill="none" stroke="${fg}" stroke-opacity="0.08" stroke-width="8"/>
+      ${mode === 'brand' ? brandMark : initials}
+    </svg>`;
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  };
+
+  const qrBadgeImage = qrBadgeMode === 'none'
+    ? undefined
+    : makeBadgeDataUrl(qrBadgeMode, qrBadgeText, fgColor, bgColor);
+  const qrHasBadge = Boolean(qrBadgeImage);
+
+  const getQrOptions = (data, { width = 200, height = 200 } = {}) => ({
+    width,
+    height,
     data: data || ' ',
+    margin: 0,
+    qrOptions: {
+      errorCorrectionLevel: qrHasBadge ? 'H' : 'M',
+    },
     dotsOptions: {
       color: fgColor,
       type: dotsType,
@@ -222,6 +295,13 @@ export default function Home({ shortenedUrls, onShortened }) {
     cornersDotOptions: {
       type: cornersSquareType === 'dot' ? 'dot' : 'square',
       color: fgColor,
+    },
+    image: qrBadgeImage,
+    imageOptions: {
+      crossOrigin: 'anonymous',
+      hideBackgroundDots: true,
+      imageSize: 0.35,
+      margin: 6,
     },
   });
 
@@ -244,14 +324,25 @@ export default function Home({ shortenedUrls, onShortened }) {
   useEffect(() => {
     if (!qrCodeRef.current || !qrValue) return;
     qrCodeRef.current.update(getQrOptions(qrValue));
-  }, [fgColor, bgColor, dotsType, cornersSquareType, qrValue]);
+  }, [fgColor, bgColor, dotsType, cornersSquareType, qrValue, qrBadgeMode, qrBadgeText]);
 
-  const handleDownloadQR = (extension = 'png') => {
+  const handleDownloadQR = async (extension = 'png') => {
     if (!qrCodeRef.current) return;
-    qrCodeRef.current.download({
-      name: `qr-${selectedShortId || 'code'}`,
-      extension,
-    });
+    const name = `link-${selectedShortId || 'qr'}`;
+    try {
+      if (extension === 'png') {
+        qrCodeRef.current.update(getQrOptions(qrValue, { width: 1024, height: 1024 }));
+        await qrCodeRef.current.download({ name, extension: 'png' });
+        qrCodeRef.current.update(getQrOptions(qrValue));
+      } else {
+        await qrCodeRef.current.download({ name, extension: 'svg' });
+      }
+      setQrDownloadFeedback(extension.toUpperCase() + ' downloaded');
+      window.setTimeout(() => setQrDownloadFeedback(''), 1800);
+    } catch {
+      toast.error('Failed to download QR code');
+      try { qrCodeRef.current.update(getQrOptions(qrValue)); } catch {}
+    }
   };
 
   useEffect(() => {
@@ -356,6 +447,80 @@ export default function Home({ shortenedUrls, onShortened }) {
                   title={!currentUser ? 'Sign in to set link expiration' : undefined}
                 />
                 {currentUser && <p className="mt-1.5 text-xs text-gray-500 dark:text-slate-400">Leave blank to keep this link active indefinitely.</p>}
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="home-max-clicks" className="block text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                    Max Clicks {currentUser ? '(Optional)' : '(Sign in to use)'}
+                  </label>
+                  {currentUser && maxClicks && (
+                    <button type="button" onClick={() => setMaxClicks('')} className="text-xs text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-50 underline underline-offset-2">Clear</button>
+                  )}
+                </div>
+                <input
+                  id="home-max-clicks"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputMode="numeric"
+                  value={maxClicks}
+                  onChange={(e) => setMaxClicks(e.target.value)}
+                  className="w-full px-3 py-2.5 min-h-[44px] text-sm text-gray-900 dark:text-slate-50 placeholder-gray-400 dark:placeholder:text-slate-400 bg-transparent border border-[#EBE9E0] dark:border-slate-700 rounded-lg focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled={loading || !currentUser}
+                  placeholder="e.g., 100"
+                  title={!currentUser ? 'Sign in to set a max click limit' : undefined}
+                />
+                {currentUser && <p className="mt-1.5 text-xs text-gray-500 dark:text-slate-400">Leave blank for unlimited clicks.</p>}
+              </div>
+              <div className="pt-1 border-t border-[#EBE9E0] dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setShowUtm((v) => !v)}
+                  className="w-full flex items-center justify-between py-2 text-xs font-semibold text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50 rounded"
+                  aria-expanded={showUtm}
+                  aria-controls="home-utm-panel"
+                >
+                  <span>UTM Parameters (Optional)</span>
+                  <span className="text-gray-500 dark:text-slate-400">{showUtm ? 'Hide' : 'Show'}</span>
+                </button>
+                {showUtm && (
+                  <div id="home-utm-panel" className="space-y-2 pb-1">
+                    <input
+                      type="text"
+                      placeholder="utm_source (e.g., linkedin, github, newsletter)"
+                      value={utmSource}
+                      onChange={(e) => setUtmSource(e.target.value)}
+                      aria-label="UTM source"
+                      className="w-full px-3 py-2.5 min-h-[44px] text-sm text-gray-900 dark:text-slate-50 placeholder-gray-400 dark:placeholder:text-slate-400 bg-transparent border border-[#EBE9E0] dark:border-slate-700 rounded-lg focus:outline-none focus:border-gray-900 dark:focus:border-slate-50"
+                      disabled={loading}
+                    />
+                    <input
+                      type="text"
+                      placeholder="utm_medium (e.g., social, post, email)"
+                      value={utmMedium}
+                      onChange={(e) => setUtmMedium(e.target.value)}
+                      aria-label="UTM medium"
+                      className="w-full px-3 py-2.5 min-h-[44px] text-sm text-gray-900 dark:text-slate-50 placeholder-gray-400 dark:placeholder:text-slate-400 bg-transparent border border-[#EBE9E0] dark:border-slate-700 rounded-lg focus:outline-none focus:border-gray-900 dark:focus:border-slate-50"
+                      disabled={loading}
+                    />
+                    <input
+                      type="text"
+                      placeholder="utm_campaign (e.g., portfolio_launch)"
+                      value={utmCampaign}
+                      onChange={(e) => setUtmCampaign(e.target.value)}
+                      aria-label="UTM campaign"
+                      className="w-full px-3 py-2.5 min-h-[44px] text-sm text-gray-900 dark:text-slate-50 placeholder-gray-400 dark:placeholder:text-slate-400 bg-transparent border border-[#EBE9E0] dark:border-slate-700 rounded-lg focus:outline-none focus:border-gray-900 dark:focus:border-slate-50"
+                      disabled={loading}
+                    />
+                    {hasUtm && (
+                      <div className="mt-2 px-3 py-2 rounded-lg bg-[#FDFCF7] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Tagged destination preview</p>
+                        <p className="text-xs text-gray-700 dark:text-slate-300 break-all" title={taggedDestination.url}>{taggedDestination.url || 'Enter a valid destination URL'}</p>
+                        {taggedDestination.error && <p className="mt-1 text-xs text-[#dc2626] dark:text-red-400">{taggedDestination.error}</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               {!currentUser && (
                 <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1.5 pt-1">
@@ -491,12 +656,21 @@ export default function Home({ shortenedUrls, onShortened }) {
                 {qrValue}
               </span>
             </p>
-            <button
-              onClick={() => handleDownloadQR('png')}
-              className="w-full px-4 py-3 min-h-[44px] text-xs font-bold text-white bg-gray-900 dark:bg-slate-50 dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8F7F2] dark:focus-visible:ring-offset-slate-800"
-            >
-              Download
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleDownloadQR('png')}
+                className="px-3 py-3 min-h-[44px] text-xs font-bold text-white bg-gray-900 dark:bg-slate-50 dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8F7F2] dark:focus-visible:ring-offset-slate-800"
+              >
+                Download PNG (HD)
+              </button>
+              <button
+                onClick={() => handleDownloadQR('svg')}
+                className="px-3 py-3 min-h-[44px] text-xs font-bold text-gray-900 dark:text-slate-50 bg-[#FDFCF7] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-lg hover:bg-[#EFEBE2] dark:hover:bg-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50"
+              >
+                Download SVG
+              </button>
+            </div>
+            <div className="h-5 mt-2 text-center text-[11px] font-medium text-emerald-700 dark:text-emerald-400" aria-live="polite">{qrDownloadFeedback}</div>
             <button
               onClick={() => setIsCustomizing((prev) => !prev)}
               className="mt-3 w-full px-4 py-3 min-h-[44px] text-xs font-bold text-gray-900 dark:text-slate-50 bg-[#FBF9F4] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-lg hover:bg-[#EFEBE2] dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50"
@@ -603,12 +777,46 @@ export default function Home({ shortenedUrls, onShortened }) {
                   </div>
                 </div>
 
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-slate-400 mb-2">
+                    Center Badge
+                  </p>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {[
+                      { value: 'none', label: 'None' },
+                      { value: 'brand', label: 'L.ink Brand Mark' },
+                      { value: 'initials', label: 'Custom Initials' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setQrBadgeMode(opt.value)}
+                        className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${qrBadgeMode === opt.value ? 'bg-gray-900 text-white border-gray-900 dark:bg-slate-50 dark:text-gray-900 dark:border-slate-50' : 'bg-[#FDFCF7] dark:bg-slate-900/50 text-gray-700 dark:text-slate-300 border-[#EBE9E0] dark:border-slate-700 hover:border-gray-400 dark:hover:border-slate-500'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {qrBadgeMode === 'initials' && (
+                    <input
+                      type="text"
+                      value={qrBadgeText}
+                      onChange={(e) => setQrBadgeText(e.target.value.slice(0, 3).toUpperCase())}
+                      maxLength={3}
+                      placeholder="e.g., AP"
+                      aria-label="QR center badge initials"
+                      className="w-full px-3 py-2 text-sm text-gray-900 dark:text-slate-50 placeholder-gray-400 dark:placeholder:text-slate-400 bg-[#FDFCF7] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-lg focus:outline-none focus:border-gray-900 dark:focus:border-slate-50"
+                    />
+                  )}
+                  {qrHasBadge && <p className="mt-2 text-[11px] text-gray-500 dark:text-slate-400">High error correction (H) enabled for scannability.</p>}
+                </div>
+
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <button
                     onClick={() => handleDownloadQR('png')}
                     className="px-3 py-2 text-xs font-bold text-white bg-gray-900 dark:bg-slate-50 dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-slate-200 transition-colors"
                   >
-                    Download PNG
+                    Download PNG (HD)
                   </button>
                   <button
                     onClick={() => handleDownloadQR('svg')}

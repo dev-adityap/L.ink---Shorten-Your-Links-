@@ -32,6 +32,16 @@ export const validateShorten = [
     .trim()
     .isLength({ max: 100 })
     .withMessage('Title must be 100 characters or fewer'),
+  body('maxClicks')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null || value === '' || value === undefined) return true;
+      const n = Number(value);
+      if (!Number.isInteger(n) || n < 1) {
+        throw new Error('Max clicks must be a positive integer');
+      }
+      return true;
+    }),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

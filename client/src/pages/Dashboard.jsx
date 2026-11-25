@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 
 const getLinkStatus = (link) => {
   if (link.expiresAt && new Date() > new Date(link.expiresAt)) return 'Expired';
+  if (link.maxClicks != null && (link.clicks || 0) >= link.maxClicks) return 'Limit reached';
   return link.isActive === false ? 'Paused' : 'Active';
 };
 
@@ -14,6 +15,7 @@ const statusStyles = {
   Active: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
   Paused: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800',
   Expired: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800',
+  'Limit reached': 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800',
 };
 
 const toDateTimeLocalValue = (value) => {
@@ -70,6 +72,11 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
   const [editTitle, setEditTitle] = useState('');
   const [editAlias, setEditAlias] = useState('');
   const [editExpiresAt, setEditExpiresAt] = useState('');
+  const [editMaxClicks, setEditMaxClicks] = useState('');
+  const [editUtmSource, setEditUtmSource] = useState('');
+  const [editUtmMedium, setEditUtmMedium] = useState('');
+  const [editUtmCampaign, setEditUtmCampaign] = useState('');
+  const [editShowUtm, setEditShowUtm] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -171,6 +178,19 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
     setEditTitle(link.title || '');
     setEditAlias(link.customAlias || link.shortId || '');
     setEditExpiresAt(toDateTimeLocalValue(link.expiresAt));
+    setEditMaxClicks(link.maxClicks != null ? String(link.maxClicks) : '');
+    try {
+      const parsed = new URL(link.originalUrl || '');
+      setEditUtmSource(parsed.searchParams.get('utm_source') || '');
+      setEditUtmMedium(parsed.searchParams.get('utm_medium') || '');
+      setEditUtmCampaign(parsed.searchParams.get('utm_campaign') || '');
+      setEditShowUtm(Boolean(parsed.searchParams.get('utm_source') || parsed.searchParams.get('utm_medium') || parsed.searchParams.get('utm_campaign')));
+    } catch {
+      setEditUtmSource('');
+      setEditUtmMedium('');
+      setEditUtmCampaign('');
+      setEditShowUtm(false);
+    }
   };
 
   const handleEditClose = () => {
@@ -180,14 +200,46 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
     setEditTitle('');
     setEditAlias('');
     setEditExpiresAt('');
+    setEditMaxClicks('');
+    setEditUtmSource('');
+    setEditUtmMedium('');
+    setEditUtmCampaign('');
+    setEditShowUtm(false);
     requestAnimationFrame(() => editTriggerRef.current?.focus?.());
   };
+
+  function buildTaggedUrl(raw, utm) {
+    const trimmed = (raw || '').trim();
+    if (!trimmed) return { url: '', error: null };
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { url: trimmed, error: 'UTM tags require a valid http:// or https:// URL' };
+      }
+      for (const [key, value] of Object.entries(utm)) {
+        if (value) parsed.searchParams.set(key, value);
+        else parsed.searchParams.delete(key);
+      }
+      return { url: parsed.toString(), error: null };
+    } catch {
+      return { url: trimmed, error: Object.values(utm).some(Boolean) ? 'Enter a valid URL before adding UTM parameters' : null };
+    }
+  }
+
+  const editUtmFields = { utm_source: editUtmSource.trim(), utm_medium: editUtmMedium.trim(), utm_campaign: editUtmCampaign.trim() };
+  const editHasUtm = Object.values(editUtmFields).some(Boolean);
+  const editTaggedDestination = buildTaggedUrl(editOriginalUrl, editUtmFields);
 
   const handleEditSave = async (e) => {
     e.preventDefault();
     if (!editingLink) return;
 
-    const trimmedUrl = editOriginalUrl.trim();
+    const destination = buildTaggedUrl(editOriginalUrl, editUtmFields);
+    if (editHasUtm && destination.error) {
+      toast.error(destination.error);
+      return;
+    }
+    const trimmedUrl = (destination.url || editOriginalUrl).trim();
     const trimmedAlias = editAlias.trim();
 
     if (!trimmedUrl) {
@@ -215,6 +267,12 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
       setEditSaving(true);
       const token = await currentUser.getIdToken();
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const parsedMax = editMaxClicks === '' ? null : Number(editMaxClicks);
+      if (editMaxClicks !== '' && (!Number.isInteger(parsedMax) || parsedMax < 1)) {
+        toast.error('Max clicks must be a positive integer');
+        setEditSaving(false);
+        return;
+      }
       const res = await fetch(`${apiBase}/api/urls/${editingLink._id}`, {
         method: 'PATCH',
         headers: {
@@ -226,6 +284,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
           title: editTitle.trim(),
           customAlias: trimmedAlias,
           expiresAt: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
+          maxClicks: parsedMax,
         }),
       });
 
@@ -246,6 +305,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
       setEditTitle('');
       setEditAlias('');
       setEditExpiresAt('');
+      setEditMaxClicks('');
     } catch (error) {
       toast.error(error.message || 'Failed to update link');
     } finally {
@@ -399,7 +459,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
     }
 
     const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    const headers = ['Title', 'Original URL', 'Short Alias', 'Short URL', 'Clicks', 'Status', 'Expires At', 'Created At'];
+    const headers = ['Title', 'Original URL', 'Short Alias', 'Short URL', 'Clicks', 'Max Clicks', 'Status', 'Expires At', 'Created At'];
 
     const escapeCsv = (value) => {
       const str = value == null ? '' : String(value);
@@ -418,6 +478,7 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
         shortAlias,
         shortUrl,
         Number(link.clicks) || 0,
+        link.maxClicks ?? '',
         status,
         expiresAt,
         createdAt,
@@ -843,8 +904,11 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
                         </td>
                         <td className="px-6 py-4 text-right">
                           <span className="text-sm font-semibold text-gray-900 dark:text-slate-50">
-                            {link.clicks || 0}
+                            {link.maxClicks != null ? `${link.clicks || 0} / ${link.maxClicks}` : (link.clicks || 0)}
                           </span>
+                          {link.maxClicks != null && (link.clicks || 0) >= link.maxClicks && (
+                            <span className="block text-[11px] font-medium text-orange-700 dark:text-orange-300">Limit reached</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -959,6 +1023,58 @@ export default function Dashboard({ siteSearchQuery = '', onSiteSearchQueryChang
                 <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
                   Leave empty to keep this link active indefinitely.
                 </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="edit-max-clicks" className="block text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider">
+                    Max Clicks (optional)
+                  </label>
+                  {editMaxClicks && (
+                    <button type="button" onClick={() => setEditMaxClicks('')} className="text-xs text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-50 underline underline-offset-2">Clear</button>
+                  )}
+                </div>
+                <input
+                  id="edit-max-clicks"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputMode="numeric"
+                  value={editMaxClicks}
+                  onChange={(e) => setEditMaxClicks(e.target.value)}
+                  className="w-full px-4 py-3 text-sm text-gray-900 dark:text-slate-100 bg-[#F8F7F2] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50"
+                  placeholder="e.g., 100"
+                />
+                <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                  Leave empty for unlimited clicks.
+                </p>
+              </div>
+
+              <div className="pt-1 border-t border-[#EBE9E0] dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setEditShowUtm((v) => !v)}
+                  className="w-full flex items-center justify-between py-2 text-xs font-semibold text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-slate-50 rounded"
+                  aria-expanded={editShowUtm}
+                  aria-controls="edit-utm-panel"
+                >
+                  <span>UTM Parameters (Optional)</span>
+                  <span className="text-gray-500 dark:text-slate-400">{editShowUtm ? 'Hide' : 'Show'}</span>
+                </button>
+                {editShowUtm && (
+                  <div id="edit-utm-panel" className="space-y-2 pb-1">
+                    <input type="text" placeholder="utm_source (e.g., linkedin, github, newsletter)" value={editUtmSource} onChange={(e) => setEditUtmSource(e.target.value)} aria-label="UTM source" className="w-full px-4 py-3 text-sm text-gray-900 dark:text-slate-100 bg-[#F8F7F2] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400" />
+                    <input type="text" placeholder="utm_medium (e.g., social, post, email)" value={editUtmMedium} onChange={(e) => setEditUtmMedium(e.target.value)} aria-label="UTM medium" className="w-full px-4 py-3 text-sm text-gray-900 dark:text-slate-100 bg-[#F8F7F2] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400" />
+                    <input type="text" placeholder="utm_campaign (e.g., portfolio_launch)" value={editUtmCampaign} onChange={(e) => setEditUtmCampaign(e.target.value)} aria-label="UTM campaign" className="w-full px-4 py-3 text-sm text-gray-900 dark:text-slate-100 bg-[#F8F7F2] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700 rounded-xl focus:outline-none focus:border-gray-900 dark:focus:border-slate-50 focus:ring-1 focus:ring-gray-900 dark:focus:ring-slate-50 placeholder:text-gray-500 dark:placeholder:text-slate-400" />
+                    {editHasUtm && (
+                      <div className="mt-2 px-3 py-2 rounded-lg bg-[#FDFCF7] dark:bg-slate-900/50 border border-[#EBE9E0] dark:border-slate-700">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Tagged destination preview</p>
+                        <p className="text-xs text-gray-700 dark:text-slate-300 break-all" title={editTaggedDestination.url}>{editTaggedDestination.url || 'Enter a valid destination URL'}</p>
+                        {editTaggedDestination.error && <p className="mt-1 text-xs text-[#dc2626] dark:text-red-400">{editTaggedDestination.error}</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-2">
